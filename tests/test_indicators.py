@@ -17,6 +17,8 @@ from desdeo.tools.indicators_unary import (
     igd_plus_indicator,
     r2_batch,
     r_metric_indicators_batch,
+    hv_batch_moocore,
+    hv_moocore,
 )
 
 
@@ -46,6 +48,7 @@ def test_hv(obj, shape):
         elif shape == "inv_simplex":
             ref_dirs = 1 - ref_dirs
         volumes.append(hv(ref_dirs, 1))
+        assert np.isclose(hv(ref_dirs, 1), hv_moocore(ref_dirs, 1)), f" The moocore implementation for HV is different for {shape} {obj}D HV: {hv(ref_dirs, 1)}, HV_moocore: {hv_moocore(ref_dirs, 1)} "
     assert volumes[0] < volumes[1] < volumes[2], f"Volumes are not increasing for denser fronts for {shape} {obj}D"
     assert (
         volumes[2] < true_hv < volumes[2] * 2  # HV differences are too large for, e.g., allclose.
@@ -71,6 +74,13 @@ def test_hv_batch():
 
     solution_sets = {"uniform": set_uniform, "internal": set_internal, "boundary": set_boundary}
     hv_vals = hv_batch(solution_sets, rp_components)
+
+    hv_vals_moocore = hv_batch_moocore(solution_sets, rp_components)
+
+    assert np.allclose(
+        np.array(list(hv_vals.values())),
+        np.array(list(hv_vals_moocore.values()))
+    ), "The moocore implementation is different"
 
     # At nadir, HV internal should be highest
     assert (

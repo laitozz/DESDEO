@@ -22,7 +22,7 @@ from pymoo.indicators.hv import Hypervolume
 from pymoo.indicators.rmetric import RMetric
 from scipy.spatial.distance import cdist
 from typing import Dict
-
+import moocore
 
 def hv(solution_set: np.ndarray, reference_point_component: float) -> float:
     """Calculate the hypervolume indicator for a set of solutions.
@@ -373,3 +373,64 @@ def get_pareto_front(solutions):
 # The function signature should be similar the already implemented functions, if reasonable.
 # Optionally, a batch version of the indicator can be added as well.
 # The methods should make similar assumptions about the input data as the already implemented functions.
+
+
+
+def hv_moocore(solution_set: np.ndarray, reference_point_component: float) -> float:
+    """Calculate the hypervolume indicator for a set of solutions.
+
+    Args:
+        solution_set (np.ndarray): A 2D numpy array where each row is a solution and each column is an objective value.
+            The solutions are assumed to be non-dominated. The solutions are assumed to be normalized within the unit
+            hypercube. The ideal and nadir of the set itself can lie within the hypercube, but not outside it.
+        reference_point_component (float): The value of the reference point component. The reference point is assumed to
+            be the same for all objectives. The reference point must be at least 1.
+
+    Returns:
+        float: The hypervolume indicator value.
+    """
+
+    ind = moocore.hypervolume(solution_set, reference_point_component)
+
+    if ind is None:
+        raise ValueError("Hypervolume calculation failed.")
+
+    return float(ind)
+
+
+def hv_batch_moocore(
+    solution_sets: dict[str, np.ndarray], reference_points_component: list[float]
+) -> dict[str, list[float | None]]:
+    """Calculate the hypervolume indicator for a set of solutions over a range of reference points.
+
+    Args:
+        solution_sets (dict[str, np.ndarray]): A dict of strings mapped to 2D numpy arrays where each array contains a
+            set of solutions.
+            Each row is a solution and each column is an objective value. The solutions are assumed to be non-dominated
+            within their respective sets. The solutions are assumed to be normalized within the unit hypercube. The
+            ideal and nadir of the set itself can lie within the hypercube, but not outside it. The sets must have the
+            same number of objectives/columns but can have different number of solutions/rows.
+            The keys of the dict are the names of the sets.
+        reference_points_component (list[float]): A list of the value of the reference point component. The
+            hypervolume is calculated for each set of solutions for each reference point component. The reference point
+            is assumed to be the same for all objectives. The reference point must be at least 1.
+
+    Returns:
+        dict[str, list[float | None]]: A dict of strings mapped to lists of hypervolume indicator values. The keys of
+            the dict are the names of the sets. The lists contain the hypervolume indicator values for each reference
+            point component. If the calculation fails, the value is set to None, and should be handled by the user.
+    """
+    hvs = {key: [] for key in solution_sets}
+    num_objs = solution_sets[next(iter(solution_sets.keys()))].shape[1]
+
+    for rp in reference_points_component:
+        hv = moocore.Hypervolume(ref=rp)
+        for set_name in solution_sets:
+            ind = hv(solution_sets[set_name])
+            if ind is None:
+                warn("Hypervolume calculation failed. Setting value to None", category=RuntimeWarning, stacklevel=2)
+                hvs[set_name].append(None)
+            else:
+                hvs[set_name].append(float(ind))
+
+    return hvs
